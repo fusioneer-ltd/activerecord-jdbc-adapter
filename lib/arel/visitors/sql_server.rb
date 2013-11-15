@@ -41,7 +41,7 @@ module Arel
 
         sql = "SELECT COUNT(*) AS count_id FROM (#{sql}) AS subquery" if select_count
 
-        add_lock!(sql, :lock => o.lock && true)
+        add_lock!(sql, :lock => o.lock)
 
         sql
       end
@@ -51,7 +51,20 @@ module Arel
         if o.orders.any? && o.limit.nil?
           o.limit = Nodes::Limit.new(9223372036854775807)
         end
-        super
+        sql = super
+
+        add_lock!(sql, :lock => o.lock)
+
+        sql
+      end
+
+      def visit_Arel_Nodes_DeleteStatement(*args)
+        o   = args.first
+        sql = super
+
+        add_lock!(sql, :lock => o.lock)
+
+        sql
       end
 
       def visit_Arel_Nodes_Lock o, a = nil
