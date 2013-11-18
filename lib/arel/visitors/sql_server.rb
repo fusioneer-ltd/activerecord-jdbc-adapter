@@ -9,37 +9,37 @@ module Arel
         o, a = args.first, args.last
 
         if ! o.limit && ! o.offset
-          return super
+          sql = super
         elsif ! o.limit && o.offset
           raise ActiveRecord::ActiveRecordError, "must specify :limit with :offset"
-        end
-
-        unless o.orders.empty?
-          select_order_by = "ORDER BY #{o.orders.map { |x| do_visit x, a }.join(', ')}"
-        end
-
-        select_count = false
-        sql = o.cores.map do |x|
-          x = x.dup
-          order_by = select_order_by || determine_order_by(x, a)
-          if select_count? x
-            p = order_by ? row_num_literal(order_by) : Arel::Nodes::SqlLiteral.new("*")
-            x.projections = [p]
-            select_count = true
-          else
-            # NOTE: this should really be added here and we should built the
-            # wrapping SQL but than #replace_limit_offset! assumes it does that
-            # ... MS-SQL adapter code seems to be 'hacked' by a lot of people
-            #x.projections << row_num_literal(order_by)
+        else
+          unless o.orders.empty?
+            select_order_by = "ORDER BY #{o.orders.map { |x| do_visit x, a }.join(', ')}"
           end
-          do_visit_select_core x, a
-        end.join
 
-        #sql = "SELECT _t.* FROM (#{sql}) as _t WHERE #{get_offset_limit_clause(o)}"
-        select_order_by ||= "ORDER BY #{@connection.determine_order_clause(sql)}"
-        replace_limit_offset!(sql, limit_for(o.limit), o.offset && o.offset.value.to_i, select_order_by)
+          select_count = false
+          sql = o.cores.map do |x|
+            x = x.dup
+            order_by = select_order_by || determine_order_by(x, a)
+            if select_count? x
+              p = order_by ? row_num_literal(order_by) : Arel::Nodes::SqlLiteral.new("*")
+              x.projections = [p]
+              select_count = true
+            else
+              # NOTE: this should really be added here and we should built the
+              # wrapping SQL but than #replace_limit_offset! assumes it does that
+              # ... MS-SQL adapter code seems to be 'hacked' by a lot of people
+              #x.projections << row_num_literal(order_by)
+            end
+            do_visit_select_core x, a
+          end.join
 
-        sql = "SELECT COUNT(*) AS count_id FROM (#{sql}) AS subquery" if select_count
+          #sql = "SELECT _t.* FROM (#{sql}) as _t WHERE #{get_offset_limit_clause(o)}"
+          select_order_by ||= "ORDER BY #{@connection.determine_order_clause(sql)}"
+          replace_limit_offset!(sql, limit_for(o.limit), o.offset && o.offset.value.to_i, select_order_by)
+
+          sql = "SELECT COUNT(*) AS count_id FROM (#{sql}) AS subquery" if select_count
+        end
 
         add_lock!(sql, :lock => o.lock)
 
@@ -47,6 +47,7 @@ module Arel
       end
 
       def visit_Arel_Nodes_UpdateStatement(*args) # [o] AR <= 4.0 [o, a] on 4.1
+        o, a = args.first, args.last
         o = args.first
         if o.orders.any? && o.limit.nil?
           o.limit = Nodes::Limit.new(9223372036854775807)
@@ -58,8 +59,9 @@ module Arel
         sql
       end
 
-      def visit_Arel_Nodes_DeleteStatement(*args)
-        o   = args.first
+      # Add lock to all other statements (delete, count, exist, sum, max, avg)
+      def visit_Arel_Nodes_DeleteStatement *args
+        o = args.first
         sql = super
 
         add_lock!(sql, :lock => o.lock)
@@ -73,31 +75,6 @@ module Arel
         #
         # we return nothing here and add the appropriate stuff with #add_lock!
         #do_visit o.expr, a
-      end
-
-      def visit_Arel_Nodes_Top o, a = nil
-        # `top` wouldn't really work here:
-        #   User.select("distinct first_name").limit(10)
-        # would generate "select top 10 distinct first_name from users",
-        # which is invalid should be "select distinct top 10 first_name ..."
-        ""
-      end
-
-      def visit_Arel_Nodes_Limit o, a = nil
-        "TOP (#{do_visit o.expr, a})"
-      end
-
-      def visit_Arel_Nodes_Ordering o, a = nil
-        expr = do_visit o.expr, a
-        if o.respond_to?(:direction)
-          "#{expr} #{o.ascending? ? 'ASC' : 'DESC'}"
-        else
-          expr
-        end
-      end
-
-      def visit_Arel_Nodes_Bin o, a = nil
-        "#{do_visit o.expr, a} COLLATE Latin1_General_CS_AS_WS"
       end
 
       private

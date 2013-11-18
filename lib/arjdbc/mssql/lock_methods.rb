@@ -5,14 +5,16 @@ module ArJdbc
       MSSQL_TABLE = /(\[[^\]]+\]\.\[^\]\]\.)?\[[^\]]+\]/ # Table can be precedeed by database name and owner
       MSSQL_TABLE_WITH_ALIAS = /#{MSSQL_TABLE}( \[[^\]]+\])?/
 
+      DEFAULT_LOCK = 'UPDLOCK'
+
       # Microsoft SQL Server uses its own syntax for SELECT .. FOR UPDATE:
-      # SELECT .. FROM table1 WITH(ROWLOCK,UPDLOCK), table2 WITH(ROWLOCK,UPDLOCK) WHERE ..
+      # SELECT .. FROM table1 WITH(UPDLOCK), table2 WITH(UPDLOCK) WHERE ..
       #
       # This does in-place modification of the passed-in string.
       def add_lock!(request, options)
         if (lock = options[:lock])
           # replace the default option with the default option for SQLServer
-          hint = (lock == true || lock.expr == 'FOR UPDATE' ? 'WITH(UPDLOCK)' : "(#{lock.expr})")
+          hint = (lock == true || lock.expr == 'FOR UPDATE' ? "WITH(#{DEFAULT_LOCK})" : "(#{lock.expr})")
 
           # Replace select * from [table] with select * from [table] (hint)
           request.gsub! /select (.*) from (#{MSSQL_TABLE_WITH_ALIAS})/i, "SELECT \\1 FROM \\2 #{hint}"
