@@ -2,7 +2,7 @@ module ArJdbc
   module MSSQL
     module LockMethods
 
-      MSSQL_TABLE = /(\[[^\]]+\]\.\[^\]\]\.)?\[[^\]]+\]/ # Table can be precedeed by database name and owner
+      MSSQL_TABLE = /(\[[^\]]+\]\.\[[^\]]+\].)?\[[^\]]+\]/ # Table can be precedeed by database name and owner
       MSSQL_TABLE_WITH_ALIAS = /#{MSSQL_TABLE}( \[[^\]]+\])?/
 
       DEFAULT_LOCK = 'UPDLOCK'
