@@ -24,15 +24,19 @@ module ArJdbc
               rest_of_query = "#{from_table}.#{rest_of_query}"
             end
 
-            if distinct # select =~ /DISTINCT/i
-              order = order.gsub(/([a-z0-9_])+\./, 't.')
-              new_sql = "SELECT t.* FROM "
-              new_sql << "( SELECT ROW_NUMBER() OVER(#{order}) AS _row_num, t.* FROM (#{select} #{rest_of_query}) AS t ) AS t"
-              new_sql << " WHERE t._row_num BETWEEN #{start_row} AND #{end_row}"
+            if start_row == 1 && !distinct # retarded SQLServer can't use TOP and DISTINCT together -_-
+              new_sql = "#{select} TOP #{end_row} #{rest_of_query} #{order}"
             else
-              new_sql = "#{select} t.* FROM "
-              new_sql << "( SELECT ROW_NUMBER() OVER(#{order}) AS _row_num, #{rest_of_query} ) AS t"
-              new_sql << " WHERE t._row_num BETWEEN #{start_row} AND #{end_row}"
+              if distinct # select =~ /DISTINCT/i
+                order = order.gsub(/([a-z0-9_])+\./, 't.')
+                new_sql = "SELECT t.* FROM "
+                new_sql << "( SELECT ROW_NUMBER() OVER(#{order}) AS _row_num, t.* FROM (#{select} #{rest_of_query}) AS t ) AS t"
+                new_sql << " WHERE t._row_num BETWEEN #{start_row} AND #{end_row}"
+              else
+                new_sql = "#{select} t.* FROM "
+                new_sql << "( SELECT ROW_NUMBER() OVER(#{order}) AS _row_num, #{rest_of_query} ) AS t"
+                new_sql << " WHERE t._row_num BETWEEN #{start_row} AND #{end_row}"
+              end
             end
 
             sql.replace(new_sql)
@@ -51,7 +55,7 @@ module ArJdbc
             offset ||= 0
             start_row = offset + 1
             end_row = offset + limit.to_i
-            
+
             if match = FIND_SELECT.match(sql)
               select, distinct, rest_of_query = match[1], match[2], match[3]
             end
