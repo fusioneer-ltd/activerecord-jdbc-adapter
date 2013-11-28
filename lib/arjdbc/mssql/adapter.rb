@@ -638,7 +638,7 @@ module ArJdbc
     end
 
     def special_column_names(qualified_table_name)
-      columns = self.columns(qualified_table_name, nil, nil)
+      columns = self.columns(qualified_table_name, nil, nil) rescue [] # columns might throw an error in Java for very complex queries
       return columns if ! columns || columns.empty?
       special = []
       columns.each { |column| special << column.name if column.special }
