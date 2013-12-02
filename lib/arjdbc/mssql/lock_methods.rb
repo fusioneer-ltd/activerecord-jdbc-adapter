@@ -2,8 +2,9 @@ module ArJdbc
   module MSSQL
     module LockMethods
 
-      MSSQL_TABLE = /(\[[^\]]+\]\.\[[^\]]+\].)?\[[^\]]+\]/ # Table can be precedeed by database name and owner
-      MSSQL_TABLE_WITH_ALIAS = /#{MSSQL_TABLE}( \[[^\]]+\])?/
+      MSSQL_TABLE = /(\[[^\]]+\]\.\[[^\]]+\].)?\[[^\]]+\]/i # Table can be precedeed by database name and owner
+      MSSQL_TABLE_WITH_ALIAS = /#{MSSQL_TABLE}( \[[^\]]+\])?/i
+      EXISTING_HINT = /\s*(with)?\s*\([a-z]+\)/i
 
       DEFAULT_LOCK = 'UPDLOCK'
 
@@ -14,14 +15,14 @@ module ArJdbc
       def add_lock!(request, options)
         if (lock = options[:lock])
           # replace the default option with the default option for SQLServer
-          hint = (lock == true || lock.expr == 'FOR UPDATE' ? "WITH(#{DEFAULT_LOCK})" : "(#{lock.expr})")
+          hint = (lock == true || lock.expr == 'FOR UPDATE' ? "(#{DEFAULT_LOCK})" : "(#{lock.expr})")
 
           # Replace select * from [table] with select * from [table] (hint)
-          request.gsub! /select (.*) from (#{MSSQL_TABLE_WITH_ALIAS})/i, "SELECT \\1 FROM \\2 #{hint}"
+          request.gsub! /select (.*) from (#{MSSQL_TABLE_WITH_ALIAS})(#{EXISTING_HINT})*/i, "SELECT \\1 FROM \\2 WITH #{hint}"
 
           # Replace join [table] with join [table] (hint)
           # Replace join [table] [alias] with join [table] [alias] (hint)
-          request.gsub! /join (#{MSSQL_TABLE_WITH_ALIAS})/i, "JOIN \\1 #{hint}" # Single \ with '
+          request.gsub! /join (#{MSSQL_TABLE_WITH_ALIAS})(#{EXISTING_HINT})*/i, "JOIN \\1 #{hint}" # Single \ with '
 
           # Replace UPDATE [table] with UPDATE [table] (hint)
           request.gsub! /update (#{MSSQL_TABLE_WITH_ALIAS})/i, "UPDATE \\1 WITH#{hint}" # Double \ with "
